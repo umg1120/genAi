@@ -9,10 +9,13 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 import validators,streamlit as st
+import os
 from langchain.prompts import PromptTemplate
 from langchain_groq import ChatGroq
 from langchain.chains.summarize import load_summarize_chain
 from langchain_community.document_loaders import YoutubeLoader,UnstructuredURLLoader
+from langchain.schema import Document 
+from youtube_transcript_api import YouTubeTranscriptApi
 
 
 ## sstreamlit APP
@@ -29,7 +32,8 @@ with st.sidebar:
 generic_url=st.text_input("URL",label_visibility="collapsed")
 
 ## Gemma Model USsing Groq API
-llm =ChatGroq(model="gemma2-9b-It", groq_api_key=groq_api_key)
+os.environ['GROQ_API_KEY'] = groq_api_key
+llm =ChatGroq(model="gemma2-9b-It")
 
 prompt_template="""
 Provide a summary of the following content in 300 words:
@@ -50,11 +54,15 @@ if st.button("Summarize the Content from YT or Website"):
             with st.spinner("Waiting..."):
                 ## loading the website or yt video data
                 if "youtube.com" in generic_url:
-                    loader=YoutubeLoader.from_youtube_url(generic_url,add_video_info=True)
+                    ##loader=YoutubeLoader.from_youtube_url(generic_url,add_video_info=True)
+                    video_id = generic_url.split("v=")[-1]
+                    transcript = YouTubeTranscriptApi.get_transcript(video_id=video_id)
+                    text = " ".join([entry['text'] for entry in transcript])
+                    docs = [Document(page_content=text)]
                 else:
                     loader=UnstructuredURLLoader(urls=[generic_url],ssl_verify=False,
                                                  headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"})
-                docs=loader.load()
+                    docs=loader.load()
 
                 ## Chain For Summarization
                 chain=load_summarize_chain(llm,chain_type="stuff",prompt=prompt)
